@@ -1,0 +1,7 @@
+{
+  "name": "Final MediConnect",
+  "description": "A premium dental and healthcare landing page featuring specialist profiles and modern UI.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}

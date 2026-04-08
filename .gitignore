@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build output
+dist/
+dist-ssr/
+build/
+*.local
+
+# Environment variables (NEVER commit secrets)
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor directories and files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Agent / AI tool configuration (local only)
+.agent/
+_agent/
+.gemini/
+.antigravity/
+GEMINI.md
+
+# Test output files
+*.txt
+!README.txt
+backend/test-login-output*.txt
+backend/test_output.txt
+backend/verify_debug.txt
+backend/verify_output.txt
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Misc
+*.tgz
+*.tsbuildinfo
