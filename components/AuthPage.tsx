@@ -141,7 +141,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBack, onLoginSuccess }) => {
         // 2. Upload documents if doctor
         if (role === 'doctor') {
           const userId = response.user.id;
-          const documentTypes = [];
+          const documentTypes: string[] = [];
           const formData = new FormData();
 
           // Append files
@@ -217,8 +217,6 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBack, onLoginSuccess }) => {
       } else {
         setView('login');
       }
-    } else if (view === 'otp') {
-      setView('login');
     }
   };
 
@@ -363,7 +361,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onBack, onLoginSuccess }) => {
                 onClick={goBackStep}
                 className="text-slate-500 hover:text-brand-600 flex items-center gap-2 text-sm font-semibold transition-colors"
               >
-                <ArrowLeft size={16} /> {view === 'otp' ? 'Back to Login' : 'Back'}
+                <ArrowLeft size={16} /> Back
               </button>
             </div>
           )}

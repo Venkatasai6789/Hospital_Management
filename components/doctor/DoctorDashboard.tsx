@@ -26,7 +26,9 @@ import {
     Image as ImageIcon,
     DollarSign,
     Sparkles,
-    Navigation
+    Navigation,
+    Boxes,
+    Gauge
 } from 'lucide-react';
 import {
     DOCTOR_STATS,
@@ -41,6 +43,9 @@ import {
 } from './doctor-data';
 import { supabase } from '../../src/lib/supabase';
 import JitsiMeet from '../JitsiMeet';
+import OperationsResources from './OperationsResources';
+import PredictionInsights from './PredictionInsights';
+import DiseaseTrends from './DiseaseTrends';
 
 interface DoctorDashboardProps {
     onLogout: () => void;
@@ -64,6 +69,8 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ onLogout }) => {
     const [doctorId, setDoctorId] = useState<string | null>(null);
     const [doctorName, setDoctorName] = useState('Doctor');
     const [doctorSpecialty, setDoctorSpecialty] = useState('');
+    const [doctorHospitalName, setDoctorHospitalName] = useState('');
+    const [doctorHospitalLocation, setDoctorHospitalLocation] = useState('');
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [patients, setPatients] = useState<Patient[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -83,6 +90,9 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ onLogout }) => {
     const sidebarItems = [
         { id: 'dashboard', icon: LayoutGrid, label: t('dashboard.overview') },
         { id: 'appointments', icon: Calendar, label: t('doctor.consultations') },
+        { id: 'operations-resources', icon: Boxes, label: 'Operations & Resources' },
+        { id: 'prediction-insights', icon: Gauge, label: 'Prediction Insights' },
+        { id: 'disease-trends', icon: Activity, label: 'Disease Trends' },
         { id: 'patients', icon: Users, label: t('doctor.myPatients') },
     ];
 
@@ -125,6 +135,8 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ onLogout }) => {
                         setDoctorId(doctor.id);
                         setDoctorName(`Dr. ${doctor.first_name} ${doctor.surname}`);
                         setDoctorSpecialty(doctor.specialty);
+                        setDoctorHospitalName(doctor.hospital_name || '');
+                        setDoctorHospitalLocation(doctor.hospital_location || '');
 
                         // 3. Fetch Appointments with inner join to ensure patient data exists
                         const { data: appts, error: apptError } = await supabase
@@ -587,11 +599,17 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ onLogout }) => {
                                     <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
                                         {activeTab === 'dashboard' ? `${t('doctor.goodMorning')}, ${doctorName}` :
                                             activeTab === 'appointments' ? t('doctor.consultations') :
+                                                activeTab === 'operations-resources' ? 'Operations & Resources' :
+                                                activeTab === 'prediction-insights' ? 'Prediction Insights' :
+                                                activeTab === 'disease-trends' ? 'Disease Trends' :
                                                 activeTab === 'patients' ? t('doctor.myPatients') : t('dashboard.overview')}
                                     </h1>
                                     <p className="text-slate-500 text-sm mt-1">
                                         {activeTab === 'dashboard' ? `${t('doctor.dailySummary')} ${new Date().toDateString()}.` :
                                             activeTab === 'appointments' ? t('doctor.manageSchedule') :
+                                                activeTab === 'operations-resources' ? 'Track beds, staffing, and predicted inflow in real time.' :
+                                                activeTab === 'prediction-insights' ? 'Predict today patient overflow using realtime free APIs and detailed reason analysis.' :
+                                                activeTab === 'disease-trends' ? 'Monitor realtime disease trends with graphical surveillance insights.' :
                                                 t('doctor.viewRecords')}
                                     </p>
                                 </div>
@@ -645,8 +663,41 @@ const DoctorDashboard: React.FC<DoctorDashboardProps> = ({ onLogout }) => {
                             {/* MAIN CONTENT GRIDS FOR NON-MESSAGE TABS */}
                             <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
 
+                                {activeTab === 'operations-resources' && (
+                                    <div className="xl:col-span-3">
+                                        <OperationsResources
+                                            doctorName={doctorName}
+                                            hospitalName={doctorHospitalName}
+                                            hospitalLocation={doctorHospitalLocation}
+                                            specialty={doctorSpecialty}
+                                        />
+                                    </div>
+                                )}
+
+                                {activeTab === 'prediction-insights' && (
+                                    <div className="xl:col-span-3">
+                                        <PredictionInsights
+                                            doctorName={doctorName}
+                                            hospitalName={doctorHospitalName}
+                                            hospitalLocation={doctorHospitalLocation}
+                                            specialty={doctorSpecialty}
+                                        />
+                                    </div>
+                                )}
+
+                                {activeTab === 'disease-trends' && (
+                                    <div className="xl:col-span-3">
+                                        <DiseaseTrends
+                                            doctorName={doctorName}
+                                            hospitalName={doctorHospitalName}
+                                            hospitalLocation={doctorHospitalLocation}
+                                            specialty={doctorSpecialty}
+                                        />
+                                    </div>
+                                )}
+
                                 {/* --- SCHEDULE / APPOINTMENTS LIST --- */}
-                                {activeTab !== 'patients' && (
+                                {activeTab !== 'patients' && activeTab !== 'operations-resources' && activeTab !== 'prediction-insights' && activeTab !== 'disease-trends' && (
                                     <div className="xl:col-span-2 space-y-6">
                                         {(activeTab === 'dashboard' || activeTab === 'appointments') && (
                                             <>

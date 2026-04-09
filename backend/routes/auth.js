@@ -143,7 +143,8 @@ router.get('/me', async (req, res) => {
             return res.status(401).json({ error: 'No authorization token provided' });
         }
 
-        const result = await authService.getCurrentUser();
+        const token = authHeader.replace('Bearer ', '');
+        const result = await authService.getCurrentUser(token);
 
         if (!result.success) {
             return res.status(401).json({ error: result.error });

@@ -7,6 +7,7 @@ import patientRoutes from './routes/patients.js';
 import doctorRoutes from './routes/doctors.js';
 import adminRoutes from './routes/admin.js';
 import videoRoutes from './routes/video.js';
+import operationsRoutes from './routes/operations.js';
 
 dotenv.config();
 
@@ -32,6 +33,7 @@ app.use('/api/doctors', doctorRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/video', videoRoutes);
 app.use('/api/ai', aiRoutes); // Register AI Routes
+app.use('/api/operations', operationsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

@@ -11,6 +11,78 @@ const api = axios.create({
     },
 });
 
+let operationsSignalsRouteAvailable: boolean | null = null;
+let operationsSignalsLastFailureAt = 0;
+const OPERATIONS_ROUTE_RETRY_MS = 2 * 60 * 1000;
+
+function buildOperationsSignalsFallback(hospitalName: string, district: string) {
+    const now = new Date();
+    const diseaseSeries = Array.from({ length: 14 }).map((_, idx) => {
+        const day = new Date(now.getTime() - (13 - idx) * 24 * 60 * 60 * 1000);
+        const dailyCases = 950 + Math.round(Math.sin(idx * 0.7) * 180) + (idx % 4) * 30;
+        return {
+            date: day.toLocaleDateString('en-US'),
+            dailyCases,
+            cumulativeCases: 0,
+            cumulativeDeaths: 0,
+            avg7: dailyCases,
+        };
+    });
+    const predictedNext24h = diseaseSeries[diseaseSeries.length - 1]?.dailyCases || 1000;
+    const pressureContributionPct = Math.max(0, Math.min(100, Math.round((predictedNext24h / 4000) * 100)));
+
+    return {
+        district,
+        hospitalName,
+        fetchedAt: new Date().toISOString(),
+        geo: {
+            source: 'fallback',
+            lat: 9.925,
+            lng: 78.119,
+            district,
+        },
+        istTime: {
+            source: 'fallback',
+            timezone: 'Asia/Kolkata',
+            iso: new Date().toISOString(),
+            timeLabel: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }),
+        },
+        weather: {
+            condition: 'Partly Cloudy',
+            temperatureC: 31,
+            humidity: 68,
+            windKph: 14,
+            rainMm: 2,
+        },
+        airQuality: {
+            source: 'fallback',
+            usAqi: 62,
+            pm2_5: 24,
+            pm10: 42,
+            label: 'Moderate',
+        },
+        news: {
+            headlines: [`${district}: local civic activity expected to increase evening patient inflow.`],
+        },
+        events: {
+            events: [`${district}: moderate local gathering expected this week.`],
+        },
+        disease: {
+            summary: 'Seasonal fever and respiratory trend expected to stay moderate this week.',
+            severity: 'moderate',
+        },
+        diseaseTrend: {
+            source: 'fallback',
+            metric: 'dailyCases',
+            series: diseaseSeries,
+            predictedNext24h,
+            pressureContributionPct,
+        },
+        riskScore: 56,
+        recommendation: `Moderate pressure expected in ${hospitalName}. Keep triage staffing ready and monitor occupancy hourly.`,
+    };
+}
+
 // Add token to requests if available
 api.interceptors.request.use((config) => {
     const session = localStorage.getItem('supabase_session');
@@ -107,6 +179,35 @@ export const patientService = {
     getProfile: async (userId: string) => {
         const response = await api.get(`/patients/${userId}`);
         return response.data;
+    }
+};
+
+export const operationsService = {
+    getSignals: async (hospitalName: string, district: string, lat?: number, lng?: number) => {
+        const shouldRetryLiveRoute =
+            operationsSignalsRouteAvailable !== false ||
+            (Date.now() - operationsSignalsLastFailureAt) > OPERATIONS_ROUTE_RETRY_MS;
+
+        if (!shouldRetryLiveRoute) {
+            return buildOperationsSignalsFallback(hospitalName, district);
+        }
+
+        try {
+            const response = await api.get('/operations/signals', {
+                params: { hospitalName, district, lat, lng }
+            });
+            operationsSignalsRouteAvailable = true;
+            operationsSignalsLastFailureAt = 0;
+            return response.data;
+        } catch (error: any) {
+            const status = error?.response?.status;
+            if (status === 404 || status === 405 || !status) {
+                operationsSignalsRouteAvailable = false;
+                operationsSignalsLastFailureAt = Date.now();
+                return buildOperationsSignalsFallback(hospitalName, district);
+            }
+            throw error;
+        }
     }
 };
 

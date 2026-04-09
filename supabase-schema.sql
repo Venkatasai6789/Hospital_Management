@@ -195,3 +195,22 @@ CREATE TRIGGER update_patients_updated_at BEFORE UPDATE ON public.patients
 
 CREATE TRIGGER update_doctors_updated_at BEFORE UPDATE ON public.doctors
     FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- 5. Hospitals Table (Smart Emergency Route)
+CREATE TABLE IF NOT EXISTS public.hospitals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    coordinates JSONB NOT NULL, -- { "lat": ..., "lng": ... }
+    cases INTEGER DEFAULT 0,
+    weather_condition TEXT DEFAULT 'Clear',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- RLS Policies for hospitals
+ALTER TABLE public.hospitals ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can view hospitals"
+    ON public.hospitals FOR SELECT
+    USING (true);
+

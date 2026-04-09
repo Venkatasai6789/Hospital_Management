@@ -262,9 +262,9 @@ export async function signIn(emailOrMobile, password) {
  */
 export async function signOut() {
     try {
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
-
+        // Backend doesn't need to sign out if we are using stateless JWT tokens
+        // For a true sign out that revokes the token, it would require tracking token blacklists
+        // The client simply clears the token from its storage.
         return { success: true };
     } catch (error) {
         console.error('[Auth Service] Signout error:', error);
@@ -278,9 +278,9 @@ export async function signOut() {
 /**
  * Get current authenticated user
  */
-export async function getCurrentUser() {
+export async function getCurrentUser(token) {
     try {
-        const { data: { user }, error } = await supabase.auth.getUser();
+        const { data: { user }, error } = await supabase.auth.getUser(token);
 
         if (error) throw error;
         if (!user) return { success: false, error: 'Not authenticated' };

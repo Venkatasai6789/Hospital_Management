@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { supabase } from '../src/lib/supabase';
 import ChatBot from './ChatBot';
 import JitsiMeet from './JitsiMeet';
+import HospitalSuggestionSection from './HospitalSuggestionSection';
 import {
     LayoutGrid,
     Stethoscope,
@@ -165,6 +166,7 @@ interface Interaction {
 const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState('overview');
+    const MEDICINE_PAGE_SIZE = 24;
 
     // --- LOCALIZED DATA ---
     const SYMPTOMS_LIST = React.useMemo(() => [
@@ -203,19 +205,6 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
         { id: 'med9', name: 'Shelcal 500', type: 'Tablet', price: 120, originalPrice: 140, discount: 14, image: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?auto=format&fit=crop&q=80&w=800', category: 'Supplements', manufacturer: 'Torrent Pharma', dosage: '500mg', packSize: '15 Tablets', description: t('pharmacy.medicines.shelcal.desc') },
     ], [t]);
 
-    const HEALTH_REPORTS: HealthReport[] = React.useMemo(() => [
-        { id: 'r1', title: t('pharmacy.reports.cbc'), type: 'Lab Report', date: '28 Jan, 2024', doctorOrLab: 'Apollo Diagnostics', fileType: 'PDF', fileSize: '1.2 MB' },
-        { id: 'r2', title: t('pharmacy.reports.viralFever'), type: 'Prescription', date: '25 Jan, 2024', doctorOrLab: 'Dr. Robert Smith', fileType: 'PDF', fileSize: '450 KB' },
-        { id: 'r3', title: t('pharmacy.reports.chestXray'), type: 'Medical Report', date: '10 Dec, 2023', doctorOrLab: 'City Imaging Center', fileType: 'JPG', fileSize: '3.5 MB' },
-        { id: 'r4', title: t('pharmacy.reports.lipidProfile'), type: 'Lab Report', date: '15 Nov, 2023', doctorOrLab: 'Orange Health Labs', fileType: 'PDF', fileSize: '1.8 MB' },
-        { id: 'r5', title: t('pharmacy.reports.rootCanal'), type: 'Prescription', date: '05 Nov, 2023', doctorOrLab: 'Dr. Susan Lee', fileType: 'PDF', fileSize: '800 KB' },
-        { id: 'r6', title: t('pharmacy.reports.mriKnee'), type: 'Medical Report', date: '20 Oct, 2023', doctorOrLab: 'City Imaging Center', fileType: 'JPG', fileSize: '12 MB' },
-        { id: 'r7', title: t('pharmacy.reports.thyroid'), type: 'Lab Report', date: '12 Oct, 2023', doctorOrLab: 'Thyrocare', fileType: 'PDF', fileSize: '1.5 MB' },
-        { id: 'r8', title: t('pharmacy.reports.followUp'), type: 'Prescription', date: '30 Sep, 2023', doctorOrLab: 'Dr. Emily Chen', fileType: 'PDF', fileSize: '320 KB' },
-    ], [t]);
-
-    const REPORT_FILTERS = React.useMemo(() => ['All', 'Lab Report', 'Prescription', 'Medical Report'], []);
-
 
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [isChatOpen, setIsChatOpen] = useState(false);
@@ -232,8 +221,9 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
     const [filteredDoctors, setFilteredDoctors] = useState<Doctor[]>([]);
     const [medicinesList, setMedicinesList] = useState<PharmacyMedicine[]>([]);
     const [loadingMedicines, setLoadingMedicines] = useState(false);
-    const [allReports, setAllReports] = useState<HealthReport[]>(HEALTH_REPORTS);
-    const [viewingReport, setViewingReport] = useState<HealthReport | null>(null);
+    const [medicinePage, setMedicinePage] = useState(1);
+    const [hasMoreMedicines, setHasMoreMedicines] = useState(false);
+    const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         // 1. Fetch User
@@ -349,7 +339,7 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
                             rawNotes: parsedNotes || app.notes
                         };
                     });
-                    setAllReports([...HEALTH_REPORTS, ...dbReports]);
+                    // Reports section removed
                 }
 
                 if (appointments) {
@@ -436,62 +426,135 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
         // Show only the first generic name/substitute to avoid cluttering the UI
         const firstGeneric = m.generic_name?.split(',')[0] || m.brand_name;
 
-        // Enhance description if it's too short or contains only brief information
-        let enhancedDescription = m.description || m.side_effects || 'Professional healthcare product approved for clinical use.';
-        if (enhancedDescription.length < 30 && m.therapeutic_class) {
-            enhancedDescription = `Clinically used for ${m.therapeutic_class.toLowerCase()} management. Often prescribed for: ${enhancedDescription}`;
+        // Enhanced description using CSV data
+        let enhancedDescription = m.description || '';
+        if (!enhancedDescription && m.uses) {
+            enhancedDescription = `Used for: ${m.uses}`;
         }
+        if (!enhancedDescription && m.side_effects) {
+            enhancedDescription = `Clinically used for treatment. Common side effects: ${m.side_effects.split(',').slice(0, 2).join(', ')}`;
+        }
+        if (enhancedDescription.length < 30 && m.therapeutic_class) {
+            enhancedDescription = `Clinically used for ${m.therapeutic_class.toLowerCase()} management.`;
+        }
+
+        // Get side effects array
+        const sideEffectsArray = m.side_effects ? m.side_effects.split(',').map((s: string) => s.trim()).slice(0, 5) : [];
+        
+        // Get chemical class for better categorization
+        const mechanismText = m.action_class || m.chemical_class || m.therapeutic_class || 'Clinical standard';
+        const fallbackImage = 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=800';
+        const normalizedImage = typeof m.image === 'string' && /^https?:\/\//i.test(m.image) ? m.image : fallbackImage;
 
         return {
             id: m.id,
             name: m.brand_name,
             genericName: firstGeneric,
-            type: m.dosage_form,
-            price: m.price,
-            originalPrice: Math.floor(m.price * 1.2),
+            type: m.dose_form || 'Tablet',
+            price: parseFloat(m.price) || 50,
+            originalPrice: Math.floor((parseFloat(m.price) || 50) * 1.3),
             discount: 20,
-            image: m.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=800',
-            category: m.therapeutic_class || 'General',
-            manufacturer: m.manufacturer || 'MediConnect Partner',
-            dosage: m.strength || 'Standard Dose',
-            packSize: m.dosage_form === 'Syrup' ? '100ml' : m.dosage_form === 'Injection' ? '1 Vial' : '10 Units',
+            image: normalizedImage,
+            category: m.therapeutic_class || 'General Medicine',
+            manufacturer: 'MediConnect Partner',
+            dosage: m.chemical_class || 'Standard Dose',
+            packSize: m.dose_form === 'Syrup' ? '100ml' : m.dose_form === 'Injection' ? '1 Vial' : m.dose_form === 'Gel' ? '30g' : '10 Units',
             description: enhancedDescription,
-            mechanismOfAction: m.therapeutic_class ? `This medicine works as a ${m.therapeutic_class.toLowerCase()}, primarily targeting the ${m.action_class ? m.action_class.toLowerCase() : 'underlying condition'} to provide relief.` : 'Mechanism of action verified by clinical standards.',
+            mechanismOfAction: `This ${m.therapeutic_class?.toLowerCase() || 'medicine'} works as a ${mechanismText.toLowerCase()} to provide therapeutic relief. ${m.habit_forming ? '⚠️ Habit forming' : '✓ Non-habit forming'}.`,
             isGeneric: isGenericMatch && !!searchQuery
         };
     };
 
-    const fetchMedicines = async () => {
+    const fetchMedicines = async (page = 1, append = false) => {
         setLoadingMedicines(true);
-        const { data, error } = await supabase
-            .from('medicines')
-            .select('*')
-            .limit(20);
+        try {
+            const from = (page - 1) * MEDICINE_PAGE_SIZE;
+            const to = from + MEDICINE_PAGE_SIZE - 1;
+            const { data, error } = await supabase
+                .from('medicines')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .range(from, to);
 
-        if (data) {
-            setMedicinesList(data.map((m: any) => mapMedicineData(m)));
+            if (error) {
+                console.error('Error fetching medicines from database:', error);
+                setHasMoreMedicines(false);
+                setMedicinePage(1);
+                setMedicinesList(MEDICINES);
+            } else if (data && data.length > 0) {
+                console.log(`✅ Fetched ${data.length} medicines from Supabase (page ${page})`);
+                const mapped = data.map((m: any) => mapMedicineData(m));
+                setMedicinesList(prev => {
+                    if (!append) return mapped;
+                    const byId = new Map<string, PharmacyMedicine>();
+                    [...prev, ...mapped].forEach(item => byId.set(item.id, item));
+                    return Array.from(byId.values());
+                });
+                setMedicinePage(page);
+                setHasMoreMedicines(data.length === MEDICINE_PAGE_SIZE);
+            } else {
+                setHasMoreMedicines(false);
+                if (page === 1) {
+                    console.log('⚠️ No medicines found in database, using mock data');
+                    setMedicinesList(MEDICINES);
+                }
+            }
+        } catch (err) {
+            console.error('Exception fetching medicines:', err);
+            setHasMoreMedicines(false);
+            setMedicinePage(1);
+            setMedicinesList(MEDICINES);
         }
         setLoadingMedicines(false);
     };
 
     const handleSearchMedicines = async (query: string) => {
         if (!query) {
-            fetchMedicines();
+            setMedicinePage(1);
+            fetchMedicines(1, false);
             setAiSuggestedAlternatives([]);
             return;
         }
         setLoadingMedicines(true);
         setIsSearchingAI(true);
+        setHasMoreMedicines(false);
 
-        // 1. Call standard Supabase search
-        const { data, error } = await supabase
-            .from('medicines')
-            .select('*')
-            .textSearch('search_vector', query, {
-                type: 'websearch',
-                config: 'english'
-            })
-            .limit(20);
+        try {
+            // 1. Fast Supabase search with ilike fallback-safe filters
+            const { data, error } = await supabase
+                .from('medicines')
+                .select('*')
+                .or(`brand_name.ilike.%${query}%,generic_name.ilike.%${query}%,therapeutic_class.ilike.%${query}%`)
+                .order('created_at', { ascending: false })
+                .limit(40);
+
+            if (error) {
+                console.warn('Database search failed, using local fallback:', error);
+                // Fallback to client-side search on mock data
+                const localResults = MEDICINES.filter(m =>
+                    m.name.toLowerCase().includes(query.toLowerCase()) ||
+                    m.manufacturer.toLowerCase().includes(query.toLowerCase())
+                );
+                setMedicinesList(localResults);
+            } else if (data && data.length > 0) {
+                setMedicinesList(data.map((m: any) => mapMedicineData(m, query)));
+            } else {
+                // No results from database, fallback to mock data search
+                const localResults = MEDICINES.filter(m =>
+                    m.name.toLowerCase().includes(query.toLowerCase()) ||
+                    m.manufacturer.toLowerCase().includes(query.toLowerCase())
+                );
+                setMedicinesList(localResults);
+            }
+        } catch (err) {
+            console.error("Medicine search exception:", err);
+            // Use local fallback when database is unavailable
+            const localResults = MEDICINES.filter(m =>
+                m.name.toLowerCase().includes(query.toLowerCase()) ||
+                m.manufacturer.toLowerCase().includes(query.toLowerCase())
+            );
+            setMedicinesList(localResults);
+        }
 
         // 2. Call AI Generic Finder
         try {
@@ -506,42 +569,81 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
             setAiSuggestedAlternatives([]);
         }
 
-        if (data) {
-            setMedicinesList(data.map((m: any) => mapMedicineData(m, query)));
-        }
         setIsSearchingAI(false);
         setLoadingMedicines(false);
     };
 
+    const handleLoadMoreMedicines = useCallback(async () => {
+        if (loadingMedicines || !hasMoreMedicines || searchQuery.trim()) return;
+        await fetchMedicines(medicinePage + 1, true);
+    }, [loadingMedicines, hasMoreMedicines, searchQuery, medicinePage]);
+
+    useEffect(() => {
+        if (activeTab !== 'pharmacy') return;
+        if (searchQuery.trim()) return;
+        if (!hasMoreMedicines) return;
+
+        const sentinel = loadMoreSentinelRef.current;
+        if (!sentinel) return;
+
+        const observer = new IntersectionObserver(
+            entries => {
+                const [entry] = entries;
+                if (entry.isIntersecting) {
+                    handleLoadMoreMedicines();
+                }
+            },
+            {
+                root: null,
+                rootMargin: '200px 0px',
+                threshold: 0.1
+            }
+        );
+
+        observer.observe(sentinel);
+
+        return () => observer.disconnect();
+    }, [activeTab, searchQuery, hasMoreMedicines, handleLoadMoreMedicines]);
+
     const fetchLabTests = async () => {
         setLoadingLabs(true);
-        const { data, error } = await supabase
-            .from('lab_tests')
-            .select('*');
+        try {
+            const { data, error } = await supabase
+                .from('lab_tests')
+                .select('*');
 
-        if (data) {
-            const mappedTests: LabTest[] = data.map((t: any) => ({
-                id: t.id,
-                title: t.title,
-                type: t.type,
-                test_count: t.test_count,
-                price: t.price,
-                original_price: t.original_price,
-                discount: t.discount,
-                tat: t.tat,
-                category: t.category,
-                image: t.image,
-                description: t.description,
-                tests_included: t.tests_included,
-                preparation: t.preparation,
-                location: t.location,
-                contact_number: t.contact_number,
-                lab_address: t.lab_address,
-                tags: t.tags
-            }));
-            setLabTests(mappedTests);
+            if (error) {
+                console.error('Error fetching lab tests from database:', error);
+                // If database fetch fails, use empty array or mock data
+                setLabTests([]);
+            } else if (data && data.length > 0) {
+                const mappedTests: LabTest[] = data.map((t: any) => ({
+                    id: t.id,
+                    title: t.title,
+                    type: t.type,
+                    test_count: t.test_count,
+                    price: t.price,
+                    original_price: t.original_price,
+                    discount: t.discount,
+                    tat: t.tat,
+                    category: t.category,
+                    image: t.image,
+                    description: t.description,
+                    tests_included: t.tests_included,
+                    preparation: t.preparation,
+                    location: t.location,
+                    contact_number: t.contact_number,
+                    lab_address: t.lab_address,
+                    tags: t.tags
+                }));
+                setLabTests(mappedTests);
+            } else {
+                setLabTests([]);
+            }
+        } catch (err) {
+            console.error('Exception while fetching lab tests:', err);
+            setLabTests([]);
         }
-        if (error) console.error("Error fetching lab tests:", error);
         setLoadingLabs(false);
     };
 
@@ -655,7 +757,6 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
     });
 
     // Reports State
-    const [reportFilter, setReportFilter] = useState('All');
 
 
     // VIDEO CALL STATE
@@ -664,13 +765,13 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
 
     // --- SCROLL LOCK LOGIC ---
     useEffect(() => {
-        const anyModalOpen = !!viewLabTest || !!viewingReport || !!selectedDoctor || isCartOpen || !!showLabReceipt || !!isCallOpen || !!viewMedicine;
+        const anyModalOpen = !!viewLabTest || !!selectedDoctor || isCartOpen || !!showLabReceipt || !!isCallOpen || !!viewMedicine;
         if (anyModalOpen) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'auto';
         }
-    }, [viewLabTest, viewingReport, selectedDoctor, isCartOpen, showLabReceipt, isCallOpen, viewMedicine]);
+    }, [viewLabTest, selectedDoctor, isCartOpen, showLabReceipt, isCallOpen, viewMedicine]);
 
     const handleJoinCall = async (appointment: Appointment) => {
         try {
@@ -714,7 +815,6 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
         { id: 'pharmacy', icon: ShoppingBag, label: t('dashboard.pharmacy') },
         { id: 'orders', icon: Package, label: t('dashboard.myOrders') },
         { id: 'payments', icon: CreditCard, label: t('dashboard.payments') },
-        { id: 'reports', icon: FileText, label: t('dashboard.healthReports') },
     ];
 
     const specialties = [
@@ -748,14 +848,6 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
         }, 500);
         return () => clearTimeout(timer);
     }, [searchQuery, activeTab]);
-
-    // --- FILTERED REPORTS ---
-    const filteredReports = allReports.filter(report => {
-        const matchesFilter = reportFilter === 'All' || report.type === reportFilter;
-        const matchesSearch = report.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            report.doctorOrLab.toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesFilter && matchesSearch;
-    });
 
     // --- CART LOGIC ---
     const toggleCartItem = (test: LabTest) => {
@@ -879,7 +971,7 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
 
             // 1. Get full medicine details for the order
             const orderItems = pharmacyCart.map(id => {
-                const med = MEDICINES.find(m => m.id === id);
+                const med = medicinesList.find(m => m.id === id);
                 return {
                     id: med?.id,
                     name: med?.name,
@@ -955,14 +1047,6 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
     const closeMedicineModal = () => {
         setViewMedicine(null);
     }
-
-    const handleViewReport = (report: HealthReport) => {
-        setViewingReport(report);
-    };
-
-    const closeReportModal = () => {
-        setViewingReport(null);
-    };
 
     // --- CHAT LOGIC ---
 
@@ -1155,15 +1239,14 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
                                 {activeTab === 'overview' ? `Good Morning, ${userName}` :
                                     activeTab === 'book-doctor' ? 'Book a Doctor' :
                                         activeTab === 'lab-tests' ? 'Lab Tests & Packages' :
-                                            activeTab === 'pharmacy' ? 'Pharmacy' :
-                                                activeTab === 'reports' ? 'Health Reports' :
+                                                activeTab === 'pharmacy' ? 'Pharmacy' :
                                                     activeTab === 'payments' ? 'Payments & Receipts' : 'Dashboard'}
                             </h1>
                             <p className="text-slate-500 text-sm mt-1">
                                 {activeTab === 'overview' ? 'Here is your daily health intelligence summary.' :
                                     activeTab === 'lab-tests' ? 'Book health checkups from top certified labs.' :
-                                        activeTab === 'pharmacy' ? 'Order medicines and healthcare products.' :
-                                            activeTab === 'reports' ? 'Access your medical records and prescriptions securely.' : 'Manage your health journey.'}
+                                            activeTab === 'pharmacy' ? 'Order medicines and healthcare products.' :
+                                                'Manage your health journey.'}
                             </p>
                         </div>
 
@@ -1174,7 +1257,7 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
                                     type="text"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder={activeTab === 'pharmacy' ? "Search medicines, syrup..." : activeTab === 'reports' ? "Search records, doctors..." : "Search doctors..."}
+                                    placeholder={activeTab === 'pharmacy' ? "Search medicines, syrup..." : "Search doctors..."}
                                     className="pl-10 pr-10 py-2.5 bg-white border border-slate-200 rounded-full text-sm font-medium focus:outline-none focus:ring-4 focus:ring-brand-100 focus:border-brand-500 transition-all w-64 shadow-sm"
                                 />
                                 <button className="absolute right-3 top-1/2 -translate-y-1/2 p-1 bg-slate-100 rounded-full text-slate-500 hover:text-brand-600 hover:bg-brand-50 transition-colors">
@@ -1233,6 +1316,9 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
                                         ))}
                                     </div>
                                 </section>
+
+                                {/* 1B. HOSPITAL SUGGESTIONS */}
+                                <HospitalSuggestionSection />
 
                                 {/* 2. UPCOMING SCHEDULE (DYNAMIC) */}
                                 <section className="animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
@@ -1352,92 +1438,7 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
                             </>
                         )}
 
-                        {/* --- VIEW: HEALTH REPORTS (NEW) --- */}
-                        {activeTab === 'reports' && (
-                            <div className="animate-fade-in">
-                                {/* Filters */}
-                                <div className="mb-8 overflow-x-auto pb-2 custom-scrollbar">
-                                    <div className="flex gap-3">
-                                        {REPORT_FILTERS.map((filter) => (
-                                            <button
-                                                key={filter}
-                                                onClick={() => setReportFilter(filter)}
-                                                className={`whitespace-nowrap px-5 py-2.5 rounded-full text-sm font-bold transition-all border ${reportFilter === filter
-                                                    ? 'bg-brand-600 text-white border-brand-600 shadow-lg shadow-brand-500/30'
-                                                    : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300 hover:text-brand-600'
-                                                    }`}
-                                            >
-                                                {t(`dashboard.reportTypes.${filter === 'All' ? 'all' : (filter === 'Lab Report' ? 'labReport' : (filter === 'Prescription' ? 'prescription' : 'medicalReport'))}`) || filter}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
 
-                                {/* Reports Grid */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {filteredReports.map((report) => (
-                                        <div key={report.id} className="bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl hover:border-brand-200 transition-all group cursor-pointer relative overflow-hidden flex flex-col justify-between">
-                                            {/* Decor Strip REMOVED */}
-
-                                            <div>
-                                                <div className="flex justify-between items-start mb-4 pl-1">
-                                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm ${report.type === 'Lab Report' ? 'bg-blue-50 text-blue-600' :
-                                                        report.type === 'Prescription' ? 'bg-green-50 text-green-600' : 'bg-purple-50 text-purple-600'
-                                                        }`}>
-                                                        {report.type === 'Lab Report' && <FlaskConical size={24} />}
-                                                        {report.type === 'Prescription' && <Pill size={24} />}
-                                                        {report.type === 'Medical Report' && <FileText size={24} />}
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
-                                                        {report.fileType === 'PDF' ? <FileText size={12} className="text-red-500" /> : <ImageIcon size={12} className="text-blue-500" />}
-                                                        <span className="text-[10px] font-bold text-slate-500">{report.fileType}</span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="pl-1 mb-4">
-                                                    <h3 className="font-bold text-slate-900 text-lg leading-tight mb-1 group-hover:text-brand-600 transition-colors">{report.title}</h3>
-                                                    <p className="text-sm text-slate-500">{report.doctorOrLab}</p>
-                                                </div>
-                                            </div>
-
-                                            <div className="pl-1 mt-2 pt-4 border-t border-slate-50 flex items-center justify-between">
-                                                <span className="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-md">{report.date}</span>
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        onClick={() => handleViewReport(report)}
-                                                        className="p-2 bg-brand-50 text-brand-600 rounded-lg hover:bg-brand-600 hover:text-white transition-colors"
-                                                        title="View"
-                                                    >
-                                                        <Eye size={18} />
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            alert(`Downloading ${report.title}...`);
-                                                        }}
-                                                        className="p-2 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-900 hover:text-white transition-colors"
-                                                        title="Download"
-                                                    >
-                                                        <Download size={18} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                {/* Empty State */}
-                                {filteredReports.length === 0 && (
-                                    <div className="text-center py-20">
-                                        <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
-                                            <File size={32} />
-                                        </div>
-                                        <h3 className="text-lg font-bold text-slate-900">{t('common.noResults')}</h3>
-                                        <p className="text-slate-500">{t('doctor.searchHint')}</p>
-                                    </div>
-                                )}
-                            </div>
-                        )}
 
                         {/* --- VIEW: PHARMACY (RE-DESIGNED) --- */}
                         {activeTab === 'pharmacy' && (
@@ -1517,6 +1518,9 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
                                                 <img
                                                     src={med.image}
                                                     alt={med.name}
+                                                    onError={(e) => {
+                                                        e.currentTarget.src = 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&q=80&w=800';
+                                                    }}
                                                     className="h-36 object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-500"
                                                 />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-white/80 to-transparent pointer-events-none"></div>
@@ -1587,6 +1591,25 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
                                         </div>
                                     ))}
                                 </div>
+
+                                {!searchQuery.trim() && (
+                                    <div className="text-center">
+                                        <p className="text-xs text-slate-500">
+                                            Showing {filteredMedicines.length} medicines
+                                        </p>
+                                    </div>
+                                )}
+
+                                {!searchQuery.trim() && hasMoreMedicines && (
+                                    <div ref={loadMoreSentinelRef} className="h-10 w-full flex items-center justify-center">
+                                        {loadingMedicines && (
+                                            <div className="inline-flex items-center gap-2 text-sm text-slate-500 font-semibold">
+                                                <Loader2 size={16} className="animate-spin" />
+                                                Loading more medicines...
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
                                 {/* Empty State */}
                                 {filteredMedicines.length === 0 && !loadingMedicines && (
@@ -2015,167 +2038,6 @@ const PatientDashboard: React.FC<PatientDashboardProps> = ({ onLogout }) => {
                     </div>
                 </div>
             </main>
-
-            {/* REPORT VIEWER MODAL */}
-            {
-                viewingReport && (
-                    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-                        <div className="bg-white w-full max-w-3xl rounded-[2rem] shadow-2xl flex flex-col overflow-hidden animate-fade-in-up h-[80vh]">
-                            {/* Header */}
-                            <div className="bg-slate-50 border-b border-slate-200 p-6 flex items-center justify-between shrink-0">
-                                <div className="flex items-center gap-4">
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-sm ${viewingReport.type === 'Lab Report' ? 'bg-blue-100 text-blue-600' :
-                                        viewingReport.type === 'Prescription' ? 'bg-green-100 text-green-600' : 'bg-purple-100 text-purple-600'
-                                        }`}>
-                                        {viewingReport.type === 'Lab Report' ? <FlaskConical size={24} /> : viewingReport.type === 'Prescription' ? <Pill size={24} /> : <ImageIcon size={24} />}
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-bold text-slate-900 leading-tight">{viewingReport.title}</h3>
-                                        <p className="text-xs text-slate-500">{viewingReport.doctorOrLab} • {viewingReport.date}</p>
-                                    </div>
-                                </div>
-                                <button onClick={closeReportModal} className="p-2 hover:bg-slate-200 rounded-full text-slate-500 transition-colors">
-                                    <X size={20} />
-                                </button>
-                            </div>
-
-                            {/* Viewer Content */}
-                            <div className="flex-1 bg-slate-100 p-8 overflow-y-auto flex items-center justify-center">
-                                {/* Placeholder Document Visualization */}
-                                <div className="bg-white w-full h-full max-w-2xl shadow-xl rounded-xl border border-slate-200 p-12 flex flex-col items-center justify-center text-center">
-                                    <div className="w-24 h-24 bg-slate-50 rounded-full flex items-center justify-center mb-6 text-slate-300">
-                                        {viewingReport.fileType === 'PDF' ? <FileText size={48} /> : <ImageIcon size={48} />}
-                                    </div>
-                                    <h4 className="text-xl font-bold text-slate-900 mb-2">Preview Not Available</h4>
-                                    <p className="text-slate-500 max-w-xs mb-8">This is a secure document. Please download the file to view the full report content.</p>
-                                    <button
-                                        onClick={() => alert(`Downloading ${viewingReport.title}...`)}
-                                        className="bg-brand-600 text-white px-8 py-3 rounded-full font-bold shadow-lg shadow-brand-500/30 hover:bg-brand-700 transition-all flex items-center gap-2"
-                                    >
-                                        <Download size={18} /> Download {viewingReport.fileType} ({viewingReport.fileSize})
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
-
-
-            {/* VIEW REPORT MODAL */}
-            {
-                viewingReport && (
-                    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-                        <div className="bg-white w-full max-w-2xl rounded-[2rem] shadow-2xl flex flex-col overflow-hidden animate-fade-in-up max-h-[85vh]">
-                            <div className="p-6 border-b border-slate-100 flex items-center justify-between shrink-0">
-                                <h2 className="text-xl font-bold text-slate-900">{viewingReport.title}</h2>
-                                <button onClick={closeReportModal} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors">
-                                    <X size={20} />
-                                </button>
-                            </div>
-                            <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-slate-50">
-                                <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-                                    <div className="flex justify-between items-start mb-8 border-b border-slate-100 pb-6">
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <div className="w-10 h-10 bg-brand-600 text-white rounded-lg flex items-center justify-center">
-                                                    <Activity size={20} />
-                                                </div>
-                                                <span className="font-bold text-xl text-slate-900">MediConnect</span>
-                                            </div>
-                                            <p className="text-sm text-slate-500">Digital Health Record</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="font-bold text-slate-900">{viewingReport.date}</p>
-                                            <p className="text-sm text-slate-500">{viewingReport.doctorOrLab}</p>
-                                        </div>
-                                    </div>
-
-                                    {viewingReport.rawNotes ? (
-                                        <div className="space-y-6">
-                                            {(() => {
-                                                try {
-                                                    const notes = viewingReport.rawNotes;
-                                                    return (
-                                                        <>
-                                                            {notes.symptoms && (
-                                                                <div>
-                                                                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wide mb-2">Symptoms</h4>
-                                                                    <div className="flex flex-wrap gap-2">
-                                                                        {Array.isArray(notes.symptoms) ? notes.symptoms.map((s: string, i: number) => (
-                                                                            <span key={i} className="px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-sm font-medium">{s}</span>
-                                                                        )) : <p className="text-slate-900">{JSON.stringify(notes.symptoms)}</p>}
-                                                                    </div>
-                                                                </div>
-                                                            )}
-
-                                                            {notes.diagnosis && (
-                                                                <div>
-                                                                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wide mb-2">Diagnosis</h4>
-                                                                    <p className="text-slate-900 font-medium text-lg bg-red-50 text-red-700 p-4 rounded-xl border border-red-100">{notes.diagnosis}</p>
-                                                                </div>
-                                                            )}
-
-                                                            {notes.medicines && notes.medicines.length > 0 && (
-                                                                <div>
-                                                                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wide mb-3">Prescribed Medication</h4>
-                                                                    <div className="border border-slate-200 rounded-xl overflow-hidden">
-                                                                        <table className="w-full text-left text-sm">
-                                                                            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
-                                                                                <tr>
-                                                                                    <th className="p-3">Medicine</th>
-                                                                                    <th className="p-3">Dosage</th>
-                                                                                    <th className="p-3">Duration</th>
-                                                                                    <th className="p-3">Instructions</th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody className="divide-y divide-slate-100">
-                                                                                {notes.medicines.map((med: any, i: number) => (
-                                                                                    <tr key={i} className="hover:bg-slate-50/50">
-                                                                                        <td className="p-3 font-bold text-slate-900">{med.name}</td>
-                                                                                        <td className="p-3">{med.dosage}</td>
-                                                                                        <td className="p-3">{med.duration}</td>
-                                                                                        <td className="p-3 text-slate-500">{med.instructions}</td>
-                                                                                    </tr>
-                                                                                ))}
-                                                                            </tbody>
-                                                                        </table>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-
-                                                            {notes.notes && (
-                                                                <div className="mt-4">
-                                                                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wide mb-2">Clinical Notes</h4>
-                                                                    <p className="text-slate-600 bg-slate-50 p-4 rounded-xl italic">{notes.notes}</p>
-                                                                </div>
-                                                            )}
-                                                        </>
-                                                    );
-                                                } catch (e) {
-                                                    return <p className="text-red-500">Error parsing prescription data.</p>;
-                                                }
-                                            })()}
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center py-10 text-slate-400">
-                                            <FileText size={48} className="mb-4 opacity-50" />
-                                            <p>Preview not available for this file type.</p>
-                                            <button className="mt-4 text-brand-600 font-bold hover:underline">Download to View</button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="p-6 bg-slate-50 border-t border-slate-200 flex justify-end gap-4 shrink-0">
-                                <button onClick={closeReportModal} className="px-6 py-2.5 font-bold text-slate-600 hover:text-slate-900 transition-colors">Close</button>
-                                <button className="px-6 py-2.5 bg-brand-600 text-white font-bold rounded-xl hover:bg-brand-700 transition-colors flex items-center gap-2">
-                                    <Download size={18} /> Download PDF
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
 
             {/* MEDICINE DETAILS MODAL */}
             {/* MEDICINE DETAILS MODAL (RE-DESIGNED) */}

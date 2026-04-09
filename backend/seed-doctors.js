@@ -18,61 +18,83 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const mockDoctors = [
-    {
-        firstName: "John", surname: "Doe", age: 45, gender: "male",
-        specialty: "Cardiology", experience: 15,
-        location: "New York, USA", hospital: "General Hospital"
-    },
-    {
-        firstName: "Jane", surname: "Smith", age: 38, gender: "female",
-        specialty: "Pediatrics", experience: 10,
-        location: "London, UK", hospital: "City Children's Center"
-    },
-    {
-        firstName: "Robert", surname: "Brown", age: 52, gender: "male",
-        specialty: "Neurology", experience: 20,
-        location: "Toronto, Canada", hospital: "Neuro Care Institute"
-    },
-    {
-        firstName: "Emily", surname: "Davis", age: 34, gender: "female",
-        specialty: "Dermatology", experience: 8,
-        location: "Sydney, Australia", hospital: "Skin Health Clinic"
-    },
-    {
-        firstName: "Michael", surname: "Wilson", age: 48, gender: "male",
-        specialty: "Orthopedics", experience: 18,
-        location: "Chicago, USA", hospital: "Bone & Joint Center"
-    },
-    {
-        firstName: "Sarah", surname: "Taylor", age: 41, gender: "female",
-        specialty: "Gynecology", experience: 12,
-        location: "Manchester, UK", hospital: "Women's Wellness"
-    },
-    {
-        firstName: "David", surname: "Martinez", age: 39, gender: "male",
-        specialty: "Psychiatry", experience: 9,
-        location: "Austin, USA", hospital: "Mindful Health"
-    },
-    {
-        firstName: "Lisa", surname: "Anderson", age: 36, gender: "female",
-        specialty: "Dental Surgery", experience: 7,
-        location: "Seattle, USA", hospital: "Smile Bright Clinic"
-    },
-    {
-        firstName: "James", surname: "Thomas", age: 55, gender: "male",
-        specialty: "Oncology", experience: 25,
-        location: "Boston, USA", hospital: "Cancer Research Institute"
-    },
-    {
-        firstName: "Patricia", surname: "White", age: 44, gender: "female",
-        specialty: "General Medicine", experience: 14,
-        location: "Denver, USA", hospital: "Community Health Center"
-    }
+const hospitalNames = [
+    'Government Hospital Srivilliputhur',
+    'Sri Meenakshi Hospital',
+    'Sree Devi Hospital',
+    'KVT Hospital',
+    'Virudhunagar Government Medical College Hospital',
+    'Government Hospital Virudhunagar',
+    'Meenakshi Hospital Virudhunagar',
+    'Vadamalayan Hospital Virudhunagar',
+    'Shanmuganathan Hospital',
+    'Government Rajaji Hospital Madurai',
+    'Meenakshi Mission Hospital & Research Centre',
+    'Apollo Speciality Hospitals Madurai',
+    'Vadamalayan Hospitals Madurai',
+    'Velammal Medical College Hospital',
+    'Devadoss Multispeciality Hospital',
+    'Sundaram Medical Foundation Madurai',
+    'Government Hospital Krishnankoil',
+    'Meenakshi Hospital Krishnankoil',
+    'Aravind Eye Hospital Madurai',
+    'Aachi Hospital Krishnankoil',
 ];
 
+const hospitalLocations = [
+    'Main Road, Srivilliputhur, Virudhunagar District',
+    'Thiruthangal Road, Srivilliputhur',
+    'Rajapalayam Road, Srivilliputhur',
+    'Watrap Road, Srivilliputhur',
+    'Medical College Road, Virudhunagar',
+    'Hospital Road, Virudhunagar',
+    'Sivakasi Road, Virudhunagar',
+    'Madurai Road, Virudhunagar',
+    'South Car Street, Virudhunagar',
+    'Panagal Road, Madurai - 625020',
+    'Lake Area, Melur Road, Madurai - 625107',
+    'KK Nagar, Madurai - 625020',
+    'Simmakkal, Madurai - 625001',
+    'Anuppanadi, Madurai - 625009',
+    'Gorimedu, Madurai - 625007',
+    'Anna Nagar, Madurai - 625020',
+    'Main Road, Krishnankoil, Virudhunagar District',
+    'Srivilliputhur Road, Krishnankoil',
+    'Anna Nagar, Madurai - 625020',
+    'Virudhunagar Road, Krishnankoil',
+];
+
+const doctorProfiles = [
+    { firstName: 'Arjun', surname: 'Kumar', age: 44, gender: 'male', specialty: 'General Medicine', experience: 16 },
+    { firstName: 'Meera', surname: 'Iyer', age: 39, gender: 'female', specialty: 'Cardiology', experience: 13 },
+    { firstName: 'Vikram', surname: 'Rao', age: 41, gender: 'male', specialty: 'Pediatrics', experience: 12 },
+    { firstName: 'Nandini', surname: 'Shah', age: 36, gender: 'female', specialty: 'Orthopedics', experience: 10 },
+    { firstName: 'Sanjay', surname: 'Menon', age: 49, gender: 'male', specialty: 'Neurology', experience: 18 },
+    { firstName: 'Priya', surname: 'Nair', age: 37, gender: 'female', specialty: 'Gynecology', experience: 11 },
+    { firstName: 'Karthik', surname: 'Subramanian', age: 42, gender: 'male', specialty: 'Emergency', experience: 15 },
+    { firstName: 'Ananya', surname: 'Das', age: 34, gender: 'female', specialty: 'Dermatology', experience: 9 },
+    { firstName: 'Raghav', surname: 'Patel', age: 46, gender: 'male', specialty: 'Surgery', experience: 17 },
+    { firstName: 'Fatima', surname: 'Khan', age: 45, gender: 'female', specialty: 'Trauma Care', experience: 16 },
+    { firstName: 'Srinivasan', surname: 'K', age: 52, gender: 'male', specialty: 'Oncology', experience: 22 },
+    { firstName: 'Aishwarya', surname: 'Balan', age: 33, gender: 'female', specialty: 'Pulmonology', experience: 8 },
+    { firstName: 'Hari', surname: 'Prasad', age: 47, gender: 'male', specialty: 'Nephrology', experience: 19 },
+    { firstName: 'Lavanya', surname: 'S', age: 35, gender: 'female', specialty: 'General Medicine', experience: 10 },
+    { firstName: 'Mohanraj', surname: 'V', age: 50, gender: 'male', specialty: 'Cardiology', experience: 21 },
+    { firstName: 'Sowmya', surname: 'R', age: 38, gender: 'female', specialty: 'General Medicine', experience: 12 },
+    { firstName: 'Naveen', surname: 'Selvam', age: 40, gender: 'male', specialty: 'Emergency', experience: 14 },
+    { firstName: 'Divya', surname: 'Suresh', age: 32, gender: 'female', specialty: 'Ophthalmology', experience: 8 },
+    { firstName: 'Balaji', surname: 'Kumar', age: 43, gender: 'male', specialty: 'ENT', experience: 15 },
+    { firstName: 'Keerthi', surname: 'Anand', age: 31, gender: 'female', specialty: 'General Medicine', experience: 7 },
+];
+
+const mockDoctors = doctorProfiles.map((doctor, index) => ({
+    ...doctor,
+    location: hospitalLocations[index],
+    hospital: hospitalNames[index],
+}));
+
 async function seedDoctors() {
-    console.log('🌱 Seeding 10 Mock Doctors...');
+    console.log('🌱 Seeding 20 Mock Doctors...');
     const credentials = [];
 
     for (let i = 0; i < mockDoctors.length; i++) {
@@ -133,7 +155,7 @@ async function seedDoctors() {
             specialty: doc.specialty,
             years_of_experience: doc.experience,
             hospital_location: doc.location,
-            hospital_website: `www.${doc.hospital.replace(/\s+/g, '').toLowerCase()}.com`,
+            hospital_website: `www.${doc.hospital.replace(/\s+/g, '').toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
             professional_bio: `Experienced ${doc.specialty} specialist with over ${doc.experience} years of practice.`,
             approval_status: 'approved', // Auto-approve for mock data
             approved_at: new Date().toISOString()
